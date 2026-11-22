@@ -1,0 +1,834 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prompt Builder V7</title>
+<style>
+:root{color-scheme:light dark;--line:color-mix(in srgb,CanvasText 18%,transparent);--muted:color-mix(in srgb,CanvasText 65%,transparent);--panel:color-mix(in srgb,Canvas 94%,CanvasText 6%);--accent:#4778c7}
+*{box-sizing:border-box}
+body{margin:0;padding:20px;font:14px/1.5 system-ui,sans-serif;background:Canvas;color:CanvasText}
+.wrap{max-width:1050px;margin:auto}
+.intro{color:var(--muted);margin:0 0 10px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,.9fr);gap:18px;align-items:start}
+.fields{display:grid;gap:12px}
+.field,.output{border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--panel)}
+h1{font-size:21px;margin:0 0 5px}
+h2{font-size:16px;margin:0 0 10px}
+.num{display:inline-grid;place-items:center;width:23px;height:23px;border-radius:50%;background:var(--accent);color:white;font-size:12px;margin-right:7px}
+label{display:block;font-weight:650;margin:0 0 6px}
+select,input,textarea{width:100%;font:inherit;color:CanvasText;background:Canvas;border:1px solid var(--line);border-radius:8px;padding:9px}
+textarea{min-height:78px;resize:vertical}
+.pattern-picker{position:relative}
+.pattern-trigger{width:100%;display:flex;justify-content:space-between;align-items:center;text-align:left;background:Canvas}
+.pattern-menu{position:absolute;z-index:20;top:calc(100% + 5px);left:0;right:0;max-height:360px;overflow:auto;padding:6px;border:1px solid var(--line);border-radius:10px;background:Canvas;box-shadow:0 10px 28px #0002}
+.pattern-menu[hidden]{display:none}
+.pattern-row{width:100%;display:flex;align-items:center;gap:10px;text-align:left;margin:2px 0;padding:9px 10px;border:1px solid transparent;border-left:4px solid var(--moment);border-radius:7px;background:var(--moment-bg);color:CanvasText}
+.pattern-row:hover,.pattern-row:focus-visible{outline:2px solid var(--moment);outline-offset:1px}
+.pattern-row[aria-selected="true"]{border-color:var(--moment);font-weight:650}
+.moment-emoji{font-size:17px;flex:0 0 22px;text-align:center}
+.pattern-row-name{flex:1;min-width:0}
+.moment-label{font-size:11px;font-weight:650;white-space:nowrap;color:var(--moment)}
+.custom{margin-top:8px}
+.hint{font-size:12px;color:var(--muted);margin:5px 0 0}
+.checks{display:flex;flex-wrap:wrap;gap:7px}
+.checks label{font-weight:450;border:1px solid var(--line);border-radius:20px;padding:5px 9px;margin:0;display:flex;align-items:center;gap:6px}
+.checks input{width:auto}
+.output{position:sticky;top:12px}
+.output textarea{min-height:480px;font:13px/1.55 ui-monospace,monospace}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+button{border:1px solid var(--line);border-radius:8px;padding:9px 13px;background:Canvas;color:CanvasText;font:inherit;cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:white}
+button:disabled{opacity:.6;cursor:wait}
+.status{font-size:12px;color:var(--muted);min-height:18px;margin-top:6px}
+.status.error{color:#d05b5b}
+.status.success{color:#39834d}
+.library-status{font-size:12px;color:var(--muted);padding:7px 10px;border:1px solid var(--line);border-radius:8px;margin:0 0 12px}
+.library-status.error{color:#d05b5b;border-color:color-mix(in srgb,#d05b5b 50%,var(--line))}
+.library-status.success{color:#39834d}
+@media(max-width:760px){
+ body{padding:12px}
+ .layout{grid-template-columns:1fr}
+ .output{position:static}
+ .output textarea{min-height:300px}
+}
+</style>
+</head>
+
+<body>
+<main class="wrap">
+
+<h1>🧩 Prompt Builder <span style="font-size:12px;color:var(--muted);font-weight:500">V7 · Notion-connected</span></h1>
+
+<p class="intro">Complete the seven fields. Choose library options, type your own values, or combine both. The output panel accumulates the complete prompt live.</p>
+
+<div id="libraryStatus" class="library-status" role="status" aria-live="polite">Loading libraries from Notion…</div>
+
+<div class="layout">
+<section class="fields">
+
+<div class="field">
+<label for="role"><span class="num">1</span>ROLE</label>
+<select id="role"><option value="">Choose a role…</option></select>
+<p class="hint" id="roleHint"></p>
+<div class="custom">
+<label for="roleCustom">Custom role / specialization</label>
+<input id="roleCustom" placeholder="Type your own role…">
+</div>
+</div>
+
+<div class="field">
+<label><span class="num">2</span>PATTERN / CONTEXT</label>
+<div class="checks" id="domains"></div>
+<div class="custom">
+<label for="contextCustom">Additional context</label>
+<textarea id="contextCustom" placeholder="Project, board, MCU, OS, constraints, architecture…"></textarea>
+</div>
+</div>
+
+<div class="field">
+<label for="sourcesMode"><span class="num">3</span>SOURCES</label>
+<select id="sourcesMode">
+<option value="skip">Skip / non-specified</option>
+<option value="provide">Provide sources</option>
+</select>
+<div class="custom" id="sourcesWrap" hidden>
+<label for="sources">Links, files, code, logs, documentation or references</label>
+<textarea id="sources" placeholder="Paste URLs, file names, code excerpts, logs, datasheets…"></textarea>
+</div>
+</div>
+
+<div class="field">
+<label for="patternTrigger"><span class="num">4</span>TASK / INTERROGATION</label>
+<div class="pattern-picker" id="patternPicker">
+<button type="button" class="pattern-trigger" id="patternTrigger" aria-haspopup="listbox" aria-expanded="false">
+Choose an interrogation pattern… <span aria-hidden="true">▾</span>
+</button>
+<div class="pattern-menu" id="patternMenu" role="listbox" aria-label="Interrogation patterns" hidden></div>
+<select id="pattern" hidden>
+<option value="">Choose an interrogation pattern…</option>
+</select>
+</div>
+<p class="hint" id="patternHint">Selecting a pattern inserts its complete Interrogation field into the generated prompt.</p>
+
+<div class="custom">
+<label for="taskCustom">Your actual task / question</label>
+<textarea id="taskCustom" placeholder="Describe what you want to achieve, investigate, implement, debug, review or understand…"></textarea>
+</div>
+
+<div class="custom">
+<label for="interrogationCustom">Additional custom interrogation instructions</label>
+<textarea id="interrogationCustom" placeholder="Add constraints, questions, methods or evaluation criteria…"></textarea>
+</div>
+</div>
+
+<div class="field">
+<label for="deliverable"><span class="num">5</span>DELIVERABLE</label>
+<select id="deliverable"><option value="">Choose an output format…</option></select>
+<p class="hint" id="deliverableHint"></p>
+<div class="custom">
+<label for="deliverableCustom">Custom deliverable / format</label>
+<input id="deliverableCustom" placeholder="e.g. patch review, test plan, decision matrix…">
+</div>
+</div>
+
+<div class="field">
+<label for="answerSize"><span class="num">6</span>ANSWER SIZE</label>
+<select id="answerSize"><option value="">Choose answer size…</option></select>
+<p class="hint" id="answerSizeHint">Choose the answer size defined in the Answer size library.</p>
+</div>
+
+<div class="field">
+<label for="answerFormat"><span class="num">7</span>ANSWER FORMAT</label>
+<select id="answerFormat"><option value="">Choose answer format…</option></select>
+<p class="hint" id="answerFormatHint">Choose the formatting instructions for the generated answer.</p>
+</div>
+
+</section>
+
+<aside class="output">
+<h2>📝 Accumulated prompt output</h2>
+<textarea id="result" readonly placeholder="Your prompt will appear here as you fill in the fields…"></textarea>
+<div class="actions">
+<button class="primary" id="copy">Copy prompt</button>
+<button id="download">Download .txt</button>
+<button id="reset">Reset</button>
+</div>
+<div class="status" id="status" aria-live="polite"></div>
+</aside>
+</div>
+</main>
+
+<script>
+'use strict';
+
+const API_URL = 'https://prompt-builder-api.federicozanetti92.workers.dev/options';
+const INCREMENT_URL = API_URL.replace(/\/options$/, '/increment-usage');
+
+const $ = id => document.getElementById(id);
+const val = id => $(id).value.trim();
+
+let libraries = {
+  roles: [],
+  patterns: [],
+  deliverables: [],
+  answerSize: [],
+  answerFormat: []
+};
+
+const MOMENTS = {
+  Understand:{emoji:'🧭',color:'#3978b8',bg:'color-mix(in srgb,#3978b8 11%,Canvas)'},
+  Learn:{emoji:'📚',color:'#8b5bb5',bg:'color-mix(in srgb,#8b5bb5 11%,Canvas)'},
+  Design:{emoji:'🛠️',color:'#168b83',bg:'color-mix(in srgb,#168b83 11%,Canvas)'},
+  Challenge:{emoji:'⚔️',color:'#c34e57',bg:'color-mix(in srgb,#c34e57 11%,Canvas)'},
+  Debug:{emoji:'🐞',color:'#c47725',bg:'color-mix(in srgb,#c47725 11%,Canvas)'},
+  Measure:{emoji:'📏',color:'#218da8',bg:'color-mix(in srgb,#218da8 11%,Canvas)'},
+  Optimize:{emoji:'⚡',color:'#39834d',bg:'color-mix(in srgb,#39834d 11%,Canvas)'},
+  Verify:{emoji:'✅',color:'#68717d',bg:'color-mix(in srgb,#68717d 11%,Canvas)'},
+  Brainstorm:{emoji:'💡',color:'#ad861b',bg:'color-mix(in srgb,#ad861b 13%,Canvas)'},
+  'Agentic action':{emoji:'🤖',color:'#4778c7',bg:'color-mix(in srgb,#4778c7 12%,Canvas)'}
+};
+
+const patternTrigger = $('patternTrigger');
+const patternMenu = $('patternMenu');
+const patternSelect = $('pattern');
+
+function setLibraryStatus(message,type='') {
+  const el = $('libraryStatus');
+  el.textContent = message;
+  el.className = 'library-status' + (type ? ' ' + type : '');
+}
+
+function setStatus(message,type='') {
+  const el = $('status');
+  el.textContent = message;
+  el.className = 'status' + (type ? ' ' + type : '');
+}
+
+function setOptions(id,items,placeholder,defaultMatcher) {
+  const select = $(id);
+  select.replaceChildren(new Option(placeholder,''));
+
+  items.forEach((item,index) => {
+    select.add(new Option(item.name,String(index)));
+  });
+
+  const index = defaultMatcher ? items.findIndex(defaultMatcher) : -1;
+  if(index >= 0) select.value = String(index);
+}
+
+function getSelected(id,key) {
+  const index = $(id).value;
+  if(index === '') return null;
+  return libraries[key][Number(index)] || null;
+}
+
+function sortByUsage(items) {
+  return [...items].sort((a,b) =>
+    (Number(b.usage || 0) - Number(a.usage || 0)) ||
+    a.name.localeCompare(b.name)
+  );
+}
+
+function sortPatterns(patterns) {
+  return sortByUsage(patterns);
+}
+
+function renderUsageSelect(id,key,placeholder,preserveId=null) {
+  const select = $(id);
+  libraries[key] = sortByUsage(libraries[key]);
+  select.replaceChildren(new Option(placeholder,''));
+
+  libraries[key].forEach((item,index) => {
+    select.add(new Option(item.name,String(index)));
+  });
+
+  if(preserveId) {
+    const index = libraries[key].findIndex(item => item.id === preserveId);
+    select.value = index >= 0 ? String(index) : '';
+  } else {
+    select.value = '';
+  }
+}
+
+function renderDomains() {
+  const host = $('domains');
+  host.replaceChildren();
+
+  const names = [...new Set(
+    libraries.patterns.flatMap(p =>
+      Array.isArray(p.domains) ? p.domains : []
+    )
+  )].sort((a,b) => a.localeCompare(b));
+
+  names.forEach(name => {
+    const label = document.createElement('label');
+    const input = document.createElement('input');
+
+    input.type = 'checkbox';
+    input.value = name;
+    input.addEventListener('change',build);
+
+    label.append(input,document.createTextNode(name));
+    host.append(label);
+  });
+}
+
+function closePatternMenu() {
+  patternMenu.hidden = true;
+  patternTrigger.setAttribute('aria-expanded','false');
+}
+
+function updatePatternTrigger(pattern) {
+  patternTrigger.replaceChildren();
+
+  if(pattern) {
+    const moment = MOMENTS[pattern.moment] || MOMENTS.Understand;
+    const text = document.createElement('span');
+    text.textContent = moment.emoji + '  ' + pattern.name + ' · ' + (pattern.moment || 'Other');
+    patternTrigger.append(text);
+  } else {
+    const text = document.createElement('span');
+    text.textContent = 'Choose an interrogation pattern…';
+    patternTrigger.append(text);
+  }
+
+  const arrow = document.createElement('span');
+  arrow.textContent = '▾';
+  arrow.setAttribute('aria-hidden','true');
+  patternTrigger.append(arrow);
+}
+
+function renderPatterns(preserveId=null) {
+  patternMenu.replaceChildren();
+  patternSelect.replaceChildren(
+    new Option('Choose an interrogation pattern…','')
+  );
+
+  libraries.patterns = sortPatterns(libraries.patterns);
+
+  libraries.patterns.forEach((p,i) => {
+    patternSelect.add(new Option(
+      p.name + ' · ' + (p.moment || 'Other'),
+      String(i)
+    ));
+
+    const moment = MOMENTS[p.moment] || MOMENTS.Understand;
+    const row = document.createElement('button');
+
+    row.type = 'button';
+    row.className = 'pattern-row';
+    row.setAttribute('role','option');
+    row.dataset.value = String(i);
+    row.setAttribute('aria-selected','false');
+    row.style.setProperty('--moment',moment.color);
+    row.style.setProperty('--moment-bg',moment.bg);
+
+    const emoji = document.createElement('span');
+    emoji.className = 'moment-emoji';
+    emoji.setAttribute('aria-hidden','true');
+    emoji.textContent = moment.emoji;
+
+    const name = document.createElement('span');
+    name.className = 'pattern-row-name';
+    name.textContent = p.name;
+
+    const momentLabel = document.createElement('span');
+    momentLabel.className = 'moment-label';
+    momentLabel.textContent = p.moment || 'Other';
+
+    row.append(emoji,name,momentLabel);
+
+    row.addEventListener('click',() => {
+      patternSelect.value = String(i);
+      updatePatternTrigger(p);
+      closePatternMenu();
+      build();
+      patternTrigger.focus();
+    });
+
+    patternMenu.append(row);
+  });
+
+  if(preserveId) {
+    const index = libraries.patterns.findIndex(p => p.id === preserveId);
+
+    if(index >= 0) {
+      patternSelect.value = String(index);
+      updatePatternTrigger(libraries.patterns[index]);
+    } else {
+      resetPatternPicker();
+    }
+  } else {
+    resetPatternPicker();
+  }
+
+  updatePatternSelection();
+}
+
+function updatePatternSelection() {
+  patternMenu.querySelectorAll('.pattern-row').forEach(row => {
+    row.setAttribute(
+      'aria-selected',
+      String(row.dataset.value === patternSelect.value)
+    );
+  });
+}
+
+function resetPatternPicker() {
+  patternSelect.value = '';
+  updatePatternTrigger(null);
+  updatePatternSelection();
+}
+
+function addIf(lines,label,value) {
+  if(value) lines.push(label + '\n' + value);
+}
+
+function build() {
+  const lines = [];
+
+  const role = getSelected('role','roles');
+  const roleCustom = val('roleCustom');
+  const roleName = [role?.name,roleCustom].filter(Boolean).join(' — ');
+
+  if(roleName) {
+    let block = roleName;
+    if(role?.description) block += '\nRole guidance: ' + role.description;
+    addIf(lines,'ROLE',block);
+  }
+
+  const checked = [
+    ...document.querySelectorAll('#domains input:checked')
+  ].map(x => x.value);
+
+  const context = [
+    checked.length ? 'Technical domains: ' + checked.join(', ') : '',
+    val('contextCustom')
+  ].filter(Boolean).join('\n');
+
+  addIf(lines,'PATTERN / CONTEXT',context);
+
+  if(val('sourcesMode') === 'provide') {
+    addIf(lines,'SOURCES',val('sources') || '[Sources to be supplied]');
+  }
+
+  const pattern = getSelected('pattern','patterns');
+  const taskParts = [];
+
+  if(pattern) {
+    taskParts.push('Selected pattern: ' + pattern.name);
+
+    if(pattern.interrogation) {
+      taskParts.push(
+        'Full interrogation instructions:\n' + pattern.interrogation
+      );
+    }
+  }
+
+  if(val('taskCustom')) {
+    taskParts.push('Actual task / question:\n' + val('taskCustom'));
+  }
+
+  if(val('interrogationCustom')) {
+    taskParts.push(
+      'Additional custom interrogation instructions:\n' +
+      val('interrogationCustom')
+    );
+  }
+
+  addIf(lines,'TASK / INTERROGATION',taskParts.join('\n\n'));
+
+  const deliverable = getSelected('deliverable','deliverables');
+  const deliverableText = [
+    deliverable?.name,
+    val('deliverableCustom')
+  ].filter(Boolean).join(' — ');
+
+  let deliverableBlock = deliverableText;
+
+  if(deliverable?.description) {
+    deliverableBlock += '\nDescription: ' + deliverable.description;
+  }
+
+  if(deliverable?.purpose) {
+    deliverableBlock += '\nPurpose: ' + deliverable.purpose;
+  }
+
+  addIf(lines,'DELIVERABLE',deliverableBlock);
+
+  const size = getSelected('answerSize','answerSize');
+
+  if(size) {
+    addIf(
+      lines,
+      'ANSWER SIZE',
+      size.description ? size.name + '\n' + size.description : size.name
+    );
+  }
+
+  const format = getSelected('answerFormat','answerFormat');
+
+  if(format && !/no format directive/i.test(format.name)) {
+    addIf(
+      lines,
+      'ANSWER FORMAT',
+      format.description ? format.description : format.name
+    );
+  }
+
+  $('result').value = lines.length
+    ? 'Act as the following assistant and follow the instructions below.\n\n' + lines.join('\n\n')
+    : '';
+
+  if(pattern) {
+    const moment = MOMENTS[pattern.moment] || MOMENTS.Understand;
+
+    $('patternHint').textContent =
+      moment.emoji + ' ' +
+      (pattern.moment || 'Other') +
+      ' · Domains: ' +
+      (pattern.domains || []).join(', ') +
+      ' · Full Interrogation text is included in the output.';
+  } else {
+    $('patternHint').textContent =
+      'Selecting a pattern inserts its complete Interrogation field into the generated prompt.';
+  }
+
+  updatePatternSelection();
+
+  const roleNow = getSelected('role','roles');
+  $('roleHint').textContent = roleNow?.description || '';
+
+  const deliverableNow = getSelected('deliverable','deliverables');
+  $('deliverableHint').textContent = [
+    deliverableNow?.description,
+    deliverableNow?.purpose
+  ].filter(Boolean).join(' · ');
+
+  const sizeNow = getSelected('answerSize','answerSize');
+  $('answerSizeHint').textContent =
+    sizeNow?.description || 'Choose the answer size defined in the Answer size library.';
+
+  const formatNow = getSelected('answerFormat','answerFormat');
+  $('answerFormatHint').textContent =
+    formatNow?.description || 'Choose the formatting instructions for the generated answer.';
+}
+
+async function fetchOptions() {
+  const response = await fetch(API_URL,{
+    method:'GET',
+    headers:{'Accept':'application/json'},
+    cache:'no-store'
+  });
+
+  if(!response.ok) {
+    throw new Error('API returned HTTP ' + response.status);
+  }
+
+  const payload = await response.json();
+
+  if(!payload.success || !payload.options) {
+    throw new Error(payload.error || 'Invalid API response.');
+  }
+
+  return payload.options;
+}
+
+async function loadLibraries() {
+  try {
+    setLibraryStatus('Loading libraries from Notion…');
+
+    const options = await fetchOptions();
+
+    for(const key of Object.keys(libraries)) {
+      if(!Array.isArray(options[key])) {
+        throw new Error('Missing or invalid library: ' + key);
+      }
+
+      libraries[key] = options[key].filter(
+        item => item && typeof item.name === 'string'
+      );
+    }
+
+    libraries.roles = sortByUsage(libraries.roles);
+    libraries.patterns = sortPatterns(libraries.patterns);
+    libraries.deliverables = sortByUsage(libraries.deliverables);
+
+    renderUsageSelect('role','roles','Choose a role…');
+    renderUsageSelect('deliverable','deliverables','Choose an output format…');
+
+    setOptions(
+      'answerSize',
+      libraries.answerSize,
+      'Choose answer size…',
+      item => /what is appropriate/i.test(item.name)
+    );
+
+    setOptions(
+      'answerFormat',
+      libraries.answerFormat,
+      'Choose answer format…',
+      item => /notion native markdown\s*-\s*brief/i.test(item.name)
+    );
+
+    renderDomains();
+    renderPatterns();
+    build();
+
+    const counts = Object.entries(libraries)
+      .map(([key,value]) => key + ': ' + value.length)
+      .join(' · ');
+
+    setLibraryStatus('Connected to Notion · ' + counts,'success');
+
+  } catch(error) {
+    setLibraryStatus(
+      'Could not load Notion libraries: ' + error.message +
+      '. Check that the Worker is reachable and its CORS settings allow this page.',
+      'error'
+    );
+
+    $('status').textContent =
+      'Library loading failed. The selectors are unavailable until the API connection is restored.';
+
+    console.error('Prompt Builder V7:',error);
+  }
+}
+
+async function refreshTrackedLibraries(preserveIds) {
+  const options = await fetchOptions();
+
+  for(const key of ['roles','patterns','deliverables']) {
+    if(!Array.isArray(options[key])) {
+      throw new Error('The API did not return the ' + key + ' library.');
+    }
+
+    libraries[key] = sortByUsage(options[key].filter(
+      item => item && typeof item.name === 'string'
+    ));
+  }
+
+  renderUsageSelect('role','roles','Choose a role…',preserveIds.roles);
+  renderPatterns(preserveIds.patterns);
+  renderUsageSelect(
+    'deliverable',
+    'deliverables',
+    'Choose an output format…',
+    preserveIds.deliverables
+  );
+
+  build();
+}
+
+async function incrementUsage(pageId,library) {
+  const response = await fetch(INCREMENT_URL,{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'Accept':'application/json'
+    },
+    body:JSON.stringify({pageId,library})
+  });
+
+  const payload = await response.json();
+
+  if(!response.ok || !payload.success) {
+    throw new Error(
+      payload.error || 'Could not increment ' + library + ' Usage.'
+    );
+  }
+
+  return payload.result;
+}
+
+patternTrigger.addEventListener('click',() => {
+  const opening = patternMenu.hidden;
+  patternMenu.hidden = !opening;
+  patternTrigger.setAttribute('aria-expanded',String(opening));
+});
+
+patternTrigger.addEventListener('keydown',event => {
+  if(event.key === 'Escape') closePatternMenu();
+
+  if(event.key === 'ArrowDown') {
+    event.preventDefault();
+    patternMenu.hidden = false;
+    patternTrigger.setAttribute('aria-expanded','true');
+    patternMenu.querySelector('button')?.focus();
+  }
+});
+
+patternMenu.addEventListener('keydown',event => {
+  if(event.key === 'Escape') {
+    closePatternMenu();
+    patternTrigger.focus();
+  }
+});
+
+document.addEventListener('click',event => {
+  if(!$('patternPicker').contains(event.target)) {
+    closePatternMenu();
+  }
+});
+
+document.querySelectorAll('select,input,textarea').forEach(element => {
+  element.addEventListener('input',() => {
+    if(element.id === 'sourcesMode') {
+      $('sourcesWrap').hidden = val('sourcesMode') !== 'provide';
+    }
+    build();
+  });
+
+  element.addEventListener('change',() => {
+    if(element.id === 'sourcesMode') {
+      $('sourcesWrap').hidden = val('sourcesMode') !== 'provide';
+    }
+    build();
+  });
+});
+
+$('copy').onclick = async () => {
+  const copyButton = $('copy');
+  const prompt = $('result').value;
+
+  if(!prompt) {
+    setStatus('Choose or type at least one field first.','error');
+    return;
+  }
+
+  if(copyButton.disabled) return;
+
+  copyButton.disabled = true;
+
+  const selected = {
+    roles: getSelected('role','roles'),
+    patterns: getSelected('pattern','patterns'),
+    deliverables: getSelected('deliverable','deliverables')
+  };
+
+  const preserveIds = {
+    roles: selected.roles?.id || null,
+    patterns: selected.patterns?.id || null,
+    deliverables: selected.deliverables?.id || null
+  };
+
+  const targets = Object.entries(selected)
+    .filter(([library,item]) => item && item.id)
+    .map(([library,item]) => ({library,pageId:item.id}));
+
+  const warnings = [];
+
+  try {
+    if(targets.length) {
+      // Update sequentially to reduce the chance of Notion API rate limits.
+      for(const target of targets) {
+        try {
+          await incrementUsage(target.pageId,target.library);
+        } catch(error) {
+          warnings.push(target.library + ': ' + error.message);
+          console.error(
+            'Usage update failed for ' + target.library + ':',
+            error
+          );
+        }
+      }
+
+      try {
+        await refreshTrackedLibraries(preserveIds);
+      } catch(error) {
+        warnings.push('Library refresh: ' + error.message);
+        console.error('Tracked library refresh failed:',error);
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(prompt);
+
+      if(warnings.length) {
+        setStatus(
+          'Prompt copied. WARNING: ' + warnings.join(' | '),
+          'error'
+        );
+      } else if(targets.length) {
+        setStatus(
+          'Prompt copied. Usage updated for selected entries and dropdowns reordered.',
+          'success'
+        );
+      } else {
+        setStatus('Prompt copied to clipboard. No library entries were selected for Usage tracking.','success');
+      }
+    } catch(error) {
+      $('result').select();
+
+      const message = 'Clipboard access failed. Select the text and copy it manually.';
+      setStatus(
+        warnings.length ? message + ' WARNING: ' + warnings.join(' | ') : message,
+        warnings.length ? 'error' : ''
+      );
+    }
+  } finally {
+    copyButton.disabled = false;
+  }
+};
+
+$('download').onclick = () => {
+  if(!$('result').value) {
+    setStatus('There is no prompt to download yet.','error');
+    return;
+  }
+
+  const anchor = document.createElement('a');
+  const url = URL.createObjectURL(
+    new Blob([$('result').value],{type:'text/plain;charset=utf-8'})
+  );
+
+  anchor.href = url;
+  anchor.download = 'prompt.txt';
+  anchor.click();
+
+  setTimeout(() => URL.revokeObjectURL(url),1000);
+};
+
+$('reset').onclick = () => {
+  document.querySelectorAll('input,textarea').forEach(element => {
+    if(element.type === 'checkbox') {
+      element.checked = false;
+    } else {
+      element.value = '';
+    }
+  });
+
+  $('sourcesMode').value = 'skip';
+  $('sourcesWrap').hidden = true;
+
+  resetPatternPicker();
+
+  $('answerSize').value = String(
+    libraries.answerSize.findIndex(item =>
+      /what is appropriate/i.test(item.name)
+    )
+  );
+
+  if($('answerSize').value === '-1') {
+    $('answerSize').value = '';
+  }
+
+  $('answerFormat').value = String(
+    libraries.answerFormat.findIndex(item =>
+      /notion native markdown\s*-\s*brief/i.test(item.name)
+    )
+  );
+
+  if($('answerFormat').value === '-1') {
+    $('answerFormat').value = '';
+  }
+
+  setStatus('');
+  build();
+};
+
+loadLibraries();
+</script>
+</body>
+</html>
